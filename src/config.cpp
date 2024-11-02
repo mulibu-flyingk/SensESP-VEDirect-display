@@ -24,11 +24,16 @@ const int VEDI_RX = 26;
 // Define the GPIO pin where the button is connected
 const int BUTTON_PIN = 14;
 
-// define refresh rate
-const uint32_t REFRESH_RATE = 15000;
 // esp32 battery voltage levels
 const uint32_t MAX_BATTERY_VOLTAGE      = 4200; // (millivolts)
 const uint32_t WARN_BATTERY_VOLTAGE     = 3400; // (millivolts)
 const uint32_t LOW_BATTERY_VOLTAGE      = 3200; // (millivolts)
 const uint32_t VERY_LOW_BATTERY_VOLTAGE = 3100; // (millivolts)
 const uint32_t CRIT_LOW_BATTERY_VOLTAGE = 3000; // (millivolts)
+
+// timing settings
+unsigned long updateInterval = 10000; // update the screen every 10sec
+unsigned long pollingInterval = 1000; // get the data every second
+unsigned long timeoutTime = 60000; // go to sleep if signalk can't be reached for a minute
+unsigned long long uS_TO_S_FACTOR = 1000000ULL; // Conversion factor from microseconds to seconds
+const int TIME_TO_SLEEP = 900; // Time for ESP32-E to enter deep sleep

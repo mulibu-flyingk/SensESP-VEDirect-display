@@ -22,6 +22,13 @@ extern const uint32_t LOW_BATTERY_VOLTAGE;
 extern const uint32_t VERY_LOW_BATTERY_VOLTAGE;
 extern const uint32_t CRIT_LOW_BATTERY_VOLTAGE;
 
+// timing settings
+extern unsigned long updateInterval;
+extern unsigned long pollingInterval;
+extern unsigned long timeoutTime;
+extern unsigned long long uS_TO_S_FACTOR;
+extern const int TIME_TO_SLEEP;
+
 // NON-VOLATILE STORAGE (NVS) NAMESPACE
 #define NVS_NAMESPACE "esp32-bwd"
 

@@ -19,14 +19,9 @@ using namespace sensesp;
 
 Adafruit_BME280 bme;
 
-unsigned long updateInterval = 10000;
-unsigned long pollingInterval = 1000; // in milliseconds
-unsigned long timeoutTime = 60000; // 1 minute
-
 #define BATTERY_MONITORING true
-#define uS_TO_S_FACTOR 1000000ULL   // Conversion factor from microseconds to seconds
-#define TIME_TO_SLEEP  900          // Time for ESP32-E to enter deep sleep
 
+RTC_DATA_ATTR int backOff = 1;
 RTC_DATA_ATTR bool lowBat = false;
 RTC_DATA_ATTR bool initialBoot = true;  
 RTC_DATA_ATTR Measurement currentMeasurement;
@@ -152,13 +147,13 @@ void setup() {
   // Construct the global SensESPApp() object
   SensESPAppBuilder builder;
   sensesp_app = (&builder)
-                    // Set a custom hostname for the app.
-                    ->set_hostname("sensesp-vedirect-display")
-                    // Optionally, hard-code the WiFi and Signal K server
-                    // settings. This is normally not needed.
-                    //->set_wifi("My WiFi SSID", "my_wifi_password")
-                    //->set_sk_server("192.168.10.3", 80)
-                    ->get_app();
+    // Set a custom hostname for the app.
+    ->set_hostname("sensesp-vedirect-display")
+    // Optionally, hard-code the WiFi and Signal K server
+    // settings. This is normally not needed.
+    //->set_wifi("My WiFi SSID", "my_wifi_password")
+    //->set_sk_server("192.168.10.3", 80)
+    ->get_app();
 
   SensESPBaseApp::get_event_loop()->onRepeat(updateInterval, update_display_callback);
 
@@ -202,26 +197,16 @@ void setup() {
   vedi->parser.data.channel_1_battery_current.connect_to(new CurrentConsumer);
   vedi->parser.data.state_of_charge.connect_to(new SoCConsumer);
 
-  vedi->parser.data.channel_1_battery_voltage.connect_to(new SKOutputFloat("electrical.batteries.house.voltage", 
-                        "/Signal K/House Battery Voltage"));
-
-  vedi->parser.data.channel_1_battery_current.connect_to(new SKOutputFloat(
-      "electrical.batteries.house.current", "/Signal K/House Battery Current"));
-
-  vedi->parser.data.state_of_charge.connect_to(
-      new SKOutputFloat("electrical.batteries.house.capacity.stateOfCharge",
-                        "/Signal K/House Battery State Of Charge"));
-
-  vedi->parser.data.instantaneous_power.connect_to(new SKOutputFloat(
-      "electrical.batteries.house.power", "/Signal K/House Battery Power"));
+  vedi->parser.data.channel_1_battery_voltage.connect_to(new SKOutputFloat(sk_path_house_voltage, config_path_house_voltage, metadata_house_voltage));
+  vedi->parser.data.channel_1_battery_current.connect_to(new SKOutputFloat(sk_path_house_current, config_path_house_current, metadata_house_current));
+  vedi->parser.data.state_of_charge.connect_to(new SKOutputFloat(sk_path_house_soc, config_path_house_soc, metadata_house_soc));
+  vedi->parser.data.instantaneous_power.connect_to(new SKOutputFloat(sk_path_house_power, config_path_house_power, metadata_house_power));
 
   vedi->parser.data.consumed_energy.connect_to(
       new SKOutputFloat("electrical.batteries.house.consumedEnergy",
                         "/Signal K/House Battery Consumed Energy"));
 
-  vedi->parser.data.time_to_go.connect_to(
-      new SKOutputFloat("electrical.batteries.house.timeToGo",
-                        "/Signal K/House Battery Time To Go"));
+  vedi->parser.data.time_to_go.connect_to(new SKOutputFloat(sk_path_house_ttg, config_path_house_ttg, metadata_house_ttg));
 
   vedi->parser.data.depth_of_deepest_discharge.connect_to(
       new SKOutputFloat("electrical.batteries.house.depthOfDeepestDischarge",
@@ -235,30 +220,18 @@ void setup() {
       new SKOutputFloat("electrical.batteries.house.depthOfAverageDischarge",
                         "/Signal K/House Battery Depth Of Average Discharge"));
 
-  vedi->parser.data.number_of_charge_cycles.connect_to(
-      new SKOutputInt("electrical.batteries.house.numberOfChargeCycles",
-                      "/Signal K/House Battery Number Of Charge Cycles"));
 
-  vedi->parser.data.number_of_full_discharges.connect_to(
-      new SKOutputInt("electrical.batteries.house.numberOfFullDischarges",
-                      "/Signal K/House Battery Number Of Full Discharges"));
+  vedi->parser.data.number_of_charge_cycles.connect_to(new SKOutputFloat(sk_path_house_charge_cycles, config_path_house_charge_cycles, metadata_house_charge_cycles));
+  vedi->parser.data.number_of_full_discharges.connect_to(new SKOutputFloat(sk_path_house_full_discharges, config_path_house_full_discharges, metadata_house_full_discharges));
 
   vedi->parser.data.cumulative_energy_drawn.connect_to(
       new SKOutputFloat("electrical.batteries.house.cumulativeEnergyDrawn",
                         "/Signal K/House Battery Cumulative Energy Drawn"));
 
-  vedi->parser.data.minimum_main_voltage.connect_to(
-      new SKOutputFloat("electrical.batteries.house.minimumVoltage",
-                        "/Signal K/House Battery Minimum Voltage"));
-
-  vedi->parser.data.maximum_main_voltage.connect_to(
-      new SKOutputFloat("electrical.batteries.house.maximumVoltage",
-                        "/Signal K/House Battery Maximum Voltage"));
-
-  vedi->parser.data.seconds_since_last_full_charge.connect_to(new SKOutputFloat(
-      "electrical.batteries.house.secondsSinceLastFullCharge",
-      "/Signal K/House Battery Seconds Since Last Full Charge"));
-
+  vedi->parser.data.minimum_main_voltage.connect_to(new SKOutputFloat(sk_path_house_min_voltage, config_path_house_min_voltage, metadata_house_min_voltage));
+  vedi->parser.data.maximum_main_voltage.connect_to(new SKOutputFloat(sk_path_house_max_voltage, config_path_house_max_voltage, metadata_house_max_voltage));
+  vedi->parser.data.seconds_since_last_full_charge.connect_to(new SKOutputFloat(sk_path_house_sslfc, config_path_house_sslfc, metadata_house_sslfc));
+  
   // Overwrite the default wifi disconnect watchdog
   // send esp32 to deep sleep instead of restarting if no connection can be established
   auto* system_status_controller = sensesp_app->get_system_status_controller();
@@ -269,9 +242,10 @@ void setup() {
         if (input == SystemStatus::kWifiDisconnected ||
             input == SystemStatus::kWifiNoAP) {
           debugW("Unable to connect to wifi for too long; going to deep sleep.");
-          esp_sleep_enable_timer_wakeup(TIME_TO_SLEEP * uS_TO_S_FACTOR);   
-          debugD("Setup ESP32 to sleep for every %d Seconds", (int)TIME_TO_SLEEP);
+          esp_sleep_enable_timer_wakeup(backOff * TIME_TO_SLEEP * uS_TO_S_FACTOR);   
+          debugD("Setup ESP32 to sleep for every %d Seconds", (int)backOff * TIME_TO_SLEEP);
           debugD("Going to sleep now");  // We have set the wake up reason. Now we can start go to sleep of the peripherals need to be in deep sleep. If no wake-up source is provided, but deep sleep is initiated, it will sleep forever unless a hardware reset occurs.
+          backOff = (backOff < 16) ? 2 * backOff : backOff;
           esp_deep_sleep_start();
         }
       }));
