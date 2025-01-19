@@ -17,6 +17,7 @@ extern const int BUTTON_PIN;
 
 // battery voltage levels
 extern const uint32_t MAX_BATTERY_VOLTAGE;
+extern const uint32_t FULL_BATTERY_VOLTAGE;
 extern const uint32_t WARN_BATTERY_VOLTAGE;
 extern const uint32_t LOW_BATTERY_VOLTAGE;
 extern const uint32_t VERY_LOW_BATTERY_VOLTAGE;

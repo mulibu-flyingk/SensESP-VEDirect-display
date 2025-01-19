@@ -26,6 +26,7 @@ const int BUTTON_PIN = 14;
 
 // esp32 battery voltage levels
 const uint32_t MAX_BATTERY_VOLTAGE      = 4200; // (millivolts)
+const uint32_t FULL_BATTERY_VOLTAGE     = 4100; // (millivolts)
 const uint32_t WARN_BATTERY_VOLTAGE     = 3400; // (millivolts)
 const uint32_t LOW_BATTERY_VOLTAGE      = 3200; // (millivolts)
 const uint32_t VERY_LOW_BATTERY_VOLTAGE = 3100; // (millivolts)

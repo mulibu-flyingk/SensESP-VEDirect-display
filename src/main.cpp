@@ -23,6 +23,7 @@ Adafruit_BME280 bme;
 
 RTC_DATA_ATTR int backOff = 1;
 RTC_DATA_ATTR bool lowBat = false;
+RTC_DATA_ATTR uint32_t batteryVoltage;
 RTC_DATA_ATTR bool initialBoot = true;  
 RTC_DATA_ATTR Measurement currentMeasurement;
 
@@ -116,7 +117,7 @@ void setup() {
   SetupLogging();
 
   if (BATTERY_MONITORING) {
-    uint32_t batteryVoltage = readBatteryVoltage();
+    batteryVoltage = readBatteryVoltage();
     debugD("Battery voltage: %d mV", int(batteryVoltage));
 
     // low battery, deep sleep now
@@ -234,19 +235,22 @@ void setup() {
   
   // Overwrite the default wifi disconnect watchdog
   // send esp32 to deep sleep instead of restarting if no connection can be established
-  auto* system_status_controller = sensesp_app->get_system_status_controller();
+  auto system_status_controller = sensesp_app->get_system_status_controller();
   system_status_controller
       ->connect_to(new Debounce<SystemStatus>(timeoutTime))
       ->connect_to(new LambdaConsumer<SystemStatus>([](SystemStatus input) {
         debugD("Got system status: %d", (int)input);
-        if (input == SystemStatus::kWifiDisconnected ||
-            input == SystemStatus::kWifiNoAP) {
-          debugW("Unable to connect to wifi for too long; going to deep sleep.");
-          esp_sleep_enable_timer_wakeup(backOff * TIME_TO_SLEEP * uS_TO_S_FACTOR);   
-          debugD("Setup ESP32 to sleep for every %d Seconds", (int)backOff * TIME_TO_SLEEP);
-          debugD("Going to sleep now");  // We have set the wake up reason. Now we can start go to sleep of the peripherals need to be in deep sleep. If no wake-up source is provided, but deep sleep is initiated, it will sleep forever unless a hardware reset occurs.
-          backOff = (backOff < 16) ? 2 * backOff : backOff;
-          esp_deep_sleep_start();
+        if ((input == SystemStatus::kWifiDisconnected || input == SystemStatus::kWifiNoAP)) {
+          debugD("ESP32 battery voltage: %d", (int)batteryVoltage);
+          if (batteryVoltage <= FULL_BATTERY_VOLTAGE) {
+            debugD("ESP32 battery voltage lower than full battery threshold.");
+            debugW("Unable to connect to wifi for too long; going to deep sleep.");
+            esp_sleep_enable_timer_wakeup(backOff * TIME_TO_SLEEP * uS_TO_S_FACTOR);   
+            debugD("Setup ESP32 to sleep for every %d Seconds", (int)backOff * TIME_TO_SLEEP);
+            debugD("Going to sleep now");  // We have set the wake up reason. Now we can start go to sleep of the peripherals need to be in deep sleep. If no wake-up source is provided, but deep sleep is initiated, it will sleep forever unless a hardware reset occurs.
+            backOff = (backOff < 16) ? 2 * backOff : backOff;
+            esp_deep_sleep_start();
+          }
         }
       }));
 }
